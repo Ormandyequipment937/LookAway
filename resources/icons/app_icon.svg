@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+    <linearGradient id="pupilGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="58" fill="url(#bgGrad)" stroke="#334155" stroke-width="4"/>
+
+  <!-- Outer Eye outline -->
+  <path d="M 20 64 C 40 32, 88 32, 108 64 C 88 96, 40 96, 20 64 Z" 
+        fill="none" stroke="url(#eyeGrad)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Pupil -->
+  <circle cx="64" cy="64" r="18" fill="url(#pupilGrad)"/>
+  <circle cx="58" cy="58" r="5" fill="#ffffff" opacity="0.8"/>
+  
+  <!-- Outer glow ring -->
+  <circle cx="64" cy="64" r="52" fill="none" stroke="#38bdf8" stroke-width="1.5" opacity="0.4" stroke-dasharray="8 6"/>
+</svg>
