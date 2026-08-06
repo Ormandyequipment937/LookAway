@@ -6,21 +6,20 @@
 #include <QIcon>
 #include <QMessageBox>
 #include <QApplication>
+#include <QScreen>
+#include <QGuiApplication>
+#include <QIntValidator>
 
 MainWindow::MainWindow(TimerEngine* timerEngine, SettingsManager* settings, AudioManager* audioManager, QWidget* parent)
     : QMainWindow(parent),
       m_timerEngine(timerEngine),
       m_settings(settings),
       m_audioManager(audioManager),
-      m_breakOverlay(nullptr),
       m_isUpdatingUi(false) {
 
     setWindowIcon(QIcon(":/icons/app_icon.svg"));
     setWindowTitle("LookAway - 20-20-20 Eye Care");
     setFixedSize(460, 580);
-
-    m_breakOverlay = new BreakOverlayWidget();
-    connect(m_breakOverlay, &BreakOverlayWidget::skipRequested, m_timerEngine, &TimerEngine::skipBreak);
 
     setupUi();
     applyTheme();
@@ -36,9 +35,38 @@ MainWindow::MainWindow(TimerEngine* timerEngine, SettingsManager* settings, Audi
 }
 
 MainWindow::~MainWindow() {
-    if (m_breakOverlay) {
-        delete m_breakOverlay;
-        m_breakOverlay = nullptr;
+    qDeleteAll(m_breakOverlays);
+    m_breakOverlays.clear();
+}
+
+int MainWindow::durationToSeconds(QComboBox* valCombo, QComboBox* unitCombo) const {
+    int val = valCombo->currentText().toInt();
+    if (val <= 0) val = 1;
+    QString unit = unitCombo->currentText();
+    if (unit == "Hours") {
+        return val * 3600;
+    } else if (unit == "Minutes") {
+        return val * 60;
+    }
+    return val; // Seconds
+}
+
+void MainWindow::secondsToUi(int totalSeconds, QComboBox* valCombo, QComboBox* unitCombo) {
+    if (totalSeconds <= 0) {
+        valCombo->setCurrentText("1");
+        unitCombo->setCurrentText("Seconds");
+        return;
+    }
+
+    if (totalSeconds % 3600 == 0) {
+        valCombo->setCurrentText(QString::number(totalSeconds / 3600));
+        unitCombo->setCurrentText("Hours");
+    } else if (totalSeconds % 60 == 0) {
+        valCombo->setCurrentText(QString::number(totalSeconds / 60));
+        unitCombo->setCurrentText("Minutes");
+    } else {
+        valCombo->setCurrentText(QString::number(totalSeconds));
+        unitCombo->setCurrentText("Seconds");
     }
 }
 
@@ -213,16 +241,32 @@ QWidget* MainWindow::createSettingsTab() {
     QGroupBox* timerGroup = new QGroupBox("Timer Durations");
     QFormLayout* timerForm = new QFormLayout(timerGroup);
 
-    m_spinWorkDuration = new QSpinBox();
-    m_spinWorkDuration->setRange(1, 120);
-    m_spinWorkDuration->setSuffix(" minutes");
+    // Work Interval controls
+    QHBoxLayout* workLayout = new QHBoxLayout();
+    m_comboWorkVal = new QComboBox();
+    m_comboWorkVal->setEditable(true);
+    m_comboWorkVal->setValidator(new QIntValidator(1, 9999, m_comboWorkVal));
+    m_comboWorkVal->addItems({"5", "10", "15", "20", "25", "30", "45", "50", "60"});
+    m_comboWorkUnit = new QComboBox();
+    m_comboWorkUnit->addItems({"Seconds", "Minutes", "Hours"});
+    m_comboWorkUnit->setFixedWidth(110);
+    workLayout->addWidget(m_comboWorkVal, 1);
+    workLayout->addWidget(m_comboWorkUnit);
 
-    m_spinBreakDuration = new QSpinBox();
-    m_spinBreakDuration->setRange(5, 300);
-    m_spinBreakDuration->setSuffix(" seconds");
+    // Break Duration controls
+    QHBoxLayout* breakLayout = new QHBoxLayout();
+    m_comboBreakVal = new QComboBox();
+    m_comboBreakVal->setEditable(true);
+    m_comboBreakVal->setValidator(new QIntValidator(1, 9999, m_comboBreakVal));
+    m_comboBreakVal->addItems({"5", "10", "15", "20", "25", "30", "45", "50", "60"});
+    m_comboBreakUnit = new QComboBox();
+    m_comboBreakUnit->addItems({"Seconds", "Minutes", "Hours"});
+    m_comboBreakUnit->setFixedWidth(110);
+    breakLayout->addWidget(m_comboBreakVal, 1);
+    breakLayout->addWidget(m_comboBreakUnit);
 
-    timerForm->addRow("Work Interval:", m_spinWorkDuration);
-    timerForm->addRow("Break Duration:", m_spinBreakDuration);
+    timerForm->addRow("Work Interval:", workLayout);
+    timerForm->addRow("Break Duration:", breakLayout);
     layout->addWidget(timerGroup);
 
     QGroupBox* audioGroup = new QGroupBox("Audio & Notifications");
@@ -261,10 +305,16 @@ QWidget* MainWindow::createSettingsTab() {
 
     QHBoxLayout* idleLayout = new QHBoxLayout();
     idleLayout->addWidget(new QLabel("   Idle threshold:"));
-    m_spinIdleThreshold = new QSpinBox();
-    m_spinIdleThreshold->setRange(1, 30);
-    m_spinIdleThreshold->setSuffix(" minutes");
-    idleLayout->addWidget(m_spinIdleThreshold);
+    m_comboIdleVal = new QComboBox();
+    m_comboIdleVal->setEditable(true);
+    m_comboIdleVal->setValidator(new QIntValidator(1, 9999, m_comboIdleVal));
+    m_comboIdleVal->addItems({"1", "2", "3", "5", "10", "15"});
+    m_comboIdleVal->setFixedWidth(80);
+    m_comboIdleUnit = new QComboBox();
+    m_comboIdleUnit->addItems({"Seconds", "Minutes", "Hours"});
+    m_comboIdleUnit->setFixedWidth(110);
+    idleLayout->addWidget(m_comboIdleVal);
+    idleLayout->addWidget(m_comboIdleUnit);
     idleLayout->addStretch();
 
     appLayout->addWidget(m_chkCloseToTray);
@@ -282,18 +332,22 @@ QWidget* MainWindow::createSettingsTab() {
         }
     };
 
-    connect(m_spinWorkDuration, QOverload<int>::of(&QSpinBox::valueChanged), saveLambda);
-    connect(m_spinBreakDuration, QOverload<int>::of(&QSpinBox::valueChanged), saveLambda);
+    connect(m_comboWorkVal, &QComboBox::currentTextChanged, saveLambda);
+    connect(m_comboWorkUnit, &QComboBox::currentTextChanged, saveLambda);
+    connect(m_comboBreakVal, &QComboBox::currentTextChanged, saveLambda);
+    connect(m_comboBreakUnit, &QComboBox::currentTextChanged, saveLambda);
     connect(m_chkAudioEnabled, &QCheckBox::toggled, saveLambda);
     connect(m_chkNotificationsEnabled, &QCheckBox::toggled, saveLambda);
     connect(m_chkStrictMode, &QCheckBox::toggled, saveLambda);
     connect(m_chkCloseToTray, &QCheckBox::toggled, saveLambda);
     connect(m_chkAutostart, &QCheckBox::toggled, saveLambda);
     connect(m_chkIdleDetection, &QCheckBox::toggled, [this, saveLambda](bool checked) {
-        m_spinIdleThreshold->setEnabled(checked);
+        m_comboIdleVal->setEnabled(checked);
+        m_comboIdleUnit->setEnabled(checked);
         saveLambda();
     });
-    connect(m_spinIdleThreshold, QOverload<int>::of(&QSpinBox::valueChanged), saveLambda);
+    connect(m_comboIdleVal, &QComboBox::currentTextChanged, saveLambda);
+    connect(m_comboIdleUnit, &QComboBox::currentTextChanged, saveLambda);
 
     connect(m_sliderVolume, &QSlider::valueChanged, [this, saveLambda](int val) {
         m_lblVolumeVal->setText(QString("%1%").arg(val));
@@ -309,8 +363,8 @@ QWidget* MainWindow::createSettingsTab() {
 
 void MainWindow::loadSettingsToUi() {
     m_isUpdatingUi = true;
-    m_spinWorkDuration->setValue(m_settings->workDurationSeconds() / 60);
-    m_spinBreakDuration->setValue(m_settings->breakDurationSeconds());
+    secondsToUi(m_settings->workDurationSeconds(), m_comboWorkVal, m_comboWorkUnit);
+    secondsToUi(m_settings->breakDurationSeconds(), m_comboBreakVal, m_comboBreakUnit);
     m_chkAudioEnabled->setChecked(m_settings->audioEnabled());
     m_sliderVolume->setValue(m_settings->volume());
     m_lblVolumeVal->setText(QString("%1%").arg(m_settings->volume()));
@@ -319,14 +373,15 @@ void MainWindow::loadSettingsToUi() {
     m_chkCloseToTray->setChecked(m_settings->closeToTray());
     m_chkAutostart->setChecked(m_settings->autostart());
     m_chkIdleDetection->setChecked(m_settings->idleDetectionEnabled());
-    m_spinIdleThreshold->setValue(m_settings->idleThresholdSeconds() / 60);
-    m_spinIdleThreshold->setEnabled(m_settings->idleDetectionEnabled());
+    secondsToUi(m_settings->idleThresholdSeconds(), m_comboIdleVal, m_comboIdleUnit);
+    m_comboIdleVal->setEnabled(m_settings->idleDetectionEnabled());
+    m_comboIdleUnit->setEnabled(m_settings->idleDetectionEnabled());
     m_isUpdatingUi = false;
 }
 
 void MainWindow::saveSettingsFromUi() {
-    m_settings->setWorkDurationSeconds(m_spinWorkDuration->value() * 60);
-    m_settings->setBreakDurationSeconds(m_spinBreakDuration->value());
+    m_settings->setWorkDurationSeconds(durationToSeconds(m_comboWorkVal, m_comboWorkUnit));
+    m_settings->setBreakDurationSeconds(durationToSeconds(m_comboBreakVal, m_comboBreakUnit));
     m_settings->setAudioEnabled(m_chkAudioEnabled->isChecked());
     m_settings->setVolume(m_sliderVolume->value());
     m_settings->setNotificationsEnabled(m_chkNotificationsEnabled->isChecked());
@@ -334,12 +389,12 @@ void MainWindow::saveSettingsFromUi() {
     m_settings->setCloseToTray(m_chkCloseToTray->isChecked());
     m_settings->setAutostart(m_chkAutostart->isChecked());
     m_settings->setIdleDetectionEnabled(m_chkIdleDetection->isChecked());
-    m_settings->setIdleThresholdSeconds(m_spinIdleThreshold->value() * 60);
+    m_settings->setIdleThresholdSeconds(durationToSeconds(m_comboIdleVal, m_comboIdleUnit));
 }
 
 void MainWindow::applyPreset(int workMins, int breakSecs) {
-    m_spinWorkDuration->setValue(workMins);
-    m_spinBreakDuration->setValue(breakSecs);
+    secondsToUi(workMins * 60, m_comboWorkVal, m_comboWorkUnit);
+    secondsToUi(breakSecs, m_comboBreakVal, m_comboBreakUnit);
     saveSettingsFromUi();
     if (m_timerEngine->state() == TimerEngine::State::Idle) {
         m_timerEngine->stop();
@@ -368,21 +423,31 @@ void MainWindow::updateUiForState(TimerEngine::State newState, TimerEngine::Stat
         m_statusBadgeLabel->setStyleSheet("background-color: #0284c7; color: #ffffff;");
         m_btnPlayPause->setText("Pause");
         m_btnSkipBreak->setEnabled(false);
-        if (m_breakOverlay) m_breakOverlay->hide();
+        qDeleteAll(m_breakOverlays);
+        m_breakOverlays.clear();
         break;
-
+ 
     case TimerEngine::State::Breaking:
         m_statusBadgeLabel->setText("LOOK 20 FEET AWAY! 👁️");
         m_statusBadgeLabel->setStyleSheet("background-color: #d97706; color: #ffffff;");
         m_btnPlayPause->setText("Pause");
         m_btnSkipBreak->setEnabled(true);
-        if (m_settings->strictModeEnabled() && m_breakOverlay) {
-            m_breakOverlay->showFullScreen();
-            m_breakOverlay->raise();
-            m_breakOverlay->activateWindow();
+        qDeleteAll(m_breakOverlays);
+        m_breakOverlays.clear();
+        if (m_settings->strictModeEnabled()) {
+            const QList<QScreen*> screens = QGuiApplication::screens();
+            for (QScreen* screen : screens) {
+                BreakOverlayWidget* overlay = new BreakOverlayWidget();
+                m_breakOverlays.append(overlay);
+                connect(overlay, &BreakOverlayWidget::skipRequested, m_timerEngine, &TimerEngine::skipBreak);
+                overlay->setGeometry(screen->geometry());
+                overlay->showFullScreen();
+                overlay->raise();
+                overlay->activateWindow();
+            }
         }
         break;
-
+ 
     case TimerEngine::State::Paused:
         if (m_timerEngine->isPausedForIdle()) {
             m_statusBadgeLabel->setText("PAUSED (SYSTEM IDLE)");
@@ -393,16 +458,18 @@ void MainWindow::updateUiForState(TimerEngine::State newState, TimerEngine::Stat
         }
         m_btnPlayPause->setText("Resume");
         m_btnSkipBreak->setEnabled(m_timerEngine->secondsRemaining() == m_settings->breakDurationSeconds() || oldState == TimerEngine::State::Breaking);
-        if (m_breakOverlay) m_breakOverlay->hide();
+        qDeleteAll(m_breakOverlays);
+        m_breakOverlays.clear();
         break;
-
+ 
     case TimerEngine::State::Idle:
     default:
         m_statusBadgeLabel->setText("READY TO WORK");
         m_statusBadgeLabel->setStyleSheet("background-color: #334155; color: #94a3b8;");
         m_btnPlayPause->setText("Start");
         m_btnSkipBreak->setEnabled(false);
-        if (m_breakOverlay) m_breakOverlay->hide();
+        qDeleteAll(m_breakOverlays);
+        m_breakOverlays.clear();
         break;
     }
 }
@@ -421,8 +488,10 @@ void MainWindow::updateCountdown(int secondsRemaining, int totalSeconds) {
         m_progressBar->setValue(100);
     }
 
-    if (m_breakOverlay && m_timerEngine->state() == TimerEngine::State::Breaking) {
-        m_breakOverlay->updateCountdown(secondsRemaining, totalSeconds);
+    if (m_timerEngine->state() == TimerEngine::State::Breaking) {
+        for (BreakOverlayWidget* overlay : m_breakOverlays) {
+            overlay->updateCountdown(secondsRemaining, totalSeconds);
+        }
     }
 }
 
@@ -547,12 +616,18 @@ void MainWindow::applyTheme() {
             padding: 0 4px;
             color: #38bdf8;
         }
-        QSpinBox, QSlider {
+        QSpinBox, QSlider, QComboBox {
             background-color: #0f172a;
             border: 1px solid #334155;
             border-radius: 4px;
             padding: 4px;
             color: #f8fafc;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #0f172a;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            selection-background-color: #0284c7;
         }
         QCheckBox {
             spacing: 8px;

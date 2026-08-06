@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     SystemTrayManager trayManager(&timerEngine, &settings);
     MainWindow mainWindow(&timerEngine, &settings, &audioManager);
 
-    // Auto-start timer on launch by default
+    // Auto-start timer on launch by default 
     timerEngine.start();
 
     QObject::connect(&trayManager, &SystemTrayManager::showDashboardRequested, [&mainWindow]() {

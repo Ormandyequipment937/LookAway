@@ -8,6 +8,7 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QSlider>
+#include <QComboBox>
 #include <QTabWidget>
 #include <QCloseEvent>
 #include "TimerEngine.h"
@@ -40,11 +41,13 @@ private:
     QWidget* createDashboardTab();
     QWidget* createSettingsTab();
     void applyTheme();
+    int durationToSeconds(QComboBox* valCombo, QComboBox* unitCombo) const;
+    void secondsToUi(int totalSeconds, QComboBox* valCombo, QComboBox* unitCombo);
 
     TimerEngine* m_timerEngine;
     SettingsManager* m_settings;
     AudioManager* m_audioManager;
-    BreakOverlayWidget* m_breakOverlay;
+    QList<BreakOverlayWidget*> m_breakOverlays;
 
     QTabWidget* m_tabWidget;
     bool m_isUpdatingUi;
@@ -63,8 +66,10 @@ private:
     QLabel* m_lblStatRestTime;
 
     // Settings UI
-    QSpinBox* m_spinWorkDuration;
-    QSpinBox* m_spinBreakDuration;
+    QComboBox* m_comboWorkVal;
+    QComboBox* m_comboWorkUnit;
+    QComboBox* m_comboBreakVal;
+    QComboBox* m_comboBreakUnit;
     QCheckBox* m_chkAudioEnabled;
     QSlider* m_sliderVolume;
     QLabel* m_lblVolumeVal;
@@ -74,7 +79,8 @@ private:
     QCheckBox* m_chkAutostart;
     QCheckBox* m_chkStrictMode;
     QCheckBox* m_chkIdleDetection;
-    QSpinBox* m_spinIdleThreshold;
+    QComboBox* m_comboIdleVal;
+    QComboBox* m_comboIdleUnit;
 };
 
 #endif // MAINWINDOW_H
